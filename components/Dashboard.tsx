@@ -6,7 +6,9 @@ import {
   ArrowRight,
   Plus,
   ArrowUpRight,
-  Zap
+  Zap,
+  Mic,
+  Sparkles
 } from 'lucide-react';
 import { AppData, UserRole, User, CurrencyCode, TransactionType } from '../types';
 import { format } from 'date-fns';
@@ -114,6 +116,35 @@ const Dashboard: React.FC<DashboardProps> = ({ data, currentUser, onNavigate }) 
         {/* Action Grid & Secondary Widgets */}
         <div className="md:col-span-3 lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
             
+            {/* NEW: Voice Assistant Shortcut Card */}
+            <div 
+              onClick={() => onNavigate('assistant')}
+              className="md:col-span-2 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-[2.5rem] p-6 text-white shadow-lg shadow-indigo-500/25 cursor-pointer hover:scale-[1.01] active:scale-[0.98] transition-all relative overflow-hidden group flex items-center justify-between"
+            >
+               {/* Decor */}
+               <div className="absolute right-0 top-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
+
+               <div className="relative z-10 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                      <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-sm">
+                          <Sparkles size={14} className="text-yellow-300 fill-yellow-300" />
+                      </div>
+                      <span className="text-indigo-100 text-xs font-bold uppercase tracking-wider">Nouveau</span>
+                  </div>
+                  <h3 className="font-black text-2xl mb-1">Assistant Vocal</h3>
+                  <p className="text-indigo-100 font-medium text-sm leading-snug max-w-sm">
+                     "J'ai fini le chantier..." Dites-le, l'IA s'occupe de tout noter.
+                  </p>
+               </div>
+               
+               <div className="relative z-10 w-16 h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 group-hover:bg-white group-hover:text-indigo-600 transition-all duration-300 shadow-xl ml-4">
+                  <Mic size={32} className="group-hover:scale-110 transition-transform" />
+                  {/* Pulse Ring */}
+                  <div className="absolute inset-0 rounded-full border-2 border-white/30 animate-pulse-slow"></div>
+               </div>
+            </div>
+
             {/* Quick Actions */}
             <div className="md:col-span-2 flex flex-wrap gap-4">
                  {currentUser.role === UserRole.RESPONSABLE && (

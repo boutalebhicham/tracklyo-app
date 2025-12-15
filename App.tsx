@@ -5,6 +5,7 @@ import Recaps from './components/Recaps';
 import CalendarView from './components/CalendarView';
 import Documents from './components/Documents';
 import Finances from './components/Finances';
+import VoiceAssistant from './components/VoiceAssistant'; // Import VoiceAssistant
 import { 
   UserRole, 
   User, 
@@ -35,15 +36,6 @@ const INITIAL_RESPONSABLES: User[] = [
         avatar: 'https://ui-avatars.com/api/?name=Marc+Responsable&background=random',
         phoneNumber: '33687654321'
     }
-    // On commente Sophie pour tester l'ajout du 2ème employé et voir le Paywall
-    /*,
-    {
-        id: 'u3',
-        name: 'Sophie Martin',
-        role: UserRole.RESPONSABLE,
-        avatar: 'https://ui-avatars.com/api/?name=Sophie+Martin&background=f472b6&color=fff',
-        phoneNumber: '33699887766'
-    }*/
 ];
 
 // Initial Data
@@ -199,6 +191,16 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard data={filteredData} currentUser={currentUser} onNavigate={setActiveTab} />;
+      case 'assistant': // New Case for Voice Assistant
+        return (
+            <VoiceAssistant 
+                currentUser={currentUser} 
+                onAddRecap={addRecap}
+                onAddEvent={addEvent}
+                onAddTransaction={addTransaction}
+                onNavigate={setActiveTab}
+            />
+        );
       case 'recaps':
         return <Recaps data={filteredData} currentUser={currentUser} onAddRecap={addRecap} onAddComment={addComment} />;
       case 'calendar':

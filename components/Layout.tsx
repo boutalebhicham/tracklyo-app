@@ -17,7 +17,8 @@ import {
   Users,
   Star,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 
@@ -58,6 +59,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   const navItems = [
     { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
+    { id: 'assistant', label: 'Assistant IA', icon: Sparkles }, // New Tab
     { id: 'recaps', label: 'Activité', icon: FileText },
     { id: 'calendar', label: 'Agenda', icon: Calendar },
     { id: 'documents', label: 'Fichiers', icon: FolderOpen },
