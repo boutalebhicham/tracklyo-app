@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Check, Loader2, Sparkles, AlertCircle, FileText, Calendar as CalendarIcon, Wallet, ArrowRight, X } from 'lucide-react';
+import { Mic, Check, Loader2, Sparkles, AlertCircle, FileText, Calendar as CalendarIcon, Wallet, ArrowRight, X, Layers, CheckCircle2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { User, Recap, CalendarEvent, Transaction, TransactionType } from '../types';
 import { format } from 'date-fns';
@@ -30,8 +30,9 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
   const [transcript, setTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
-  const [detectedItem, setDetectedItem] = useState<any>(null); // Store the parsed object for preview
-  const [detectedType, setDetectedType] = useState<'RECAP' | 'EVENT' | 'EXPENSE' | null>(null);
+  
+  // On stocke désormais une liste d'actions détectées
+  const [detectedItems, setDetectedItems] = useState<any[]>([]); 
 
   const recognitionRef = useRef<any>(null);
   const aiRef = useRef<GoogleGenAI | null>(null);
@@ -54,8 +55,7 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
         setIsListening(true);
         setFeedback({ type: null, message: '' });
         setTranscript('');
-        setDetectedItem(null);
-        setDetectedType(null);
+        setDetectedItems([]);
       };
 
       recognition.onresult = (event: any) => {
@@ -89,8 +89,7 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
       recognitionRef.current?.stop();
     } else {
       setTranscript('');
-      setDetectedItem(null);
-      setDetectedType(null);
+      setDetectedItems([]);
       setFeedback({ type: null, message: '' });
       recognitionRef.current?.start();
     }
@@ -98,34 +97,59 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
 
   const handleProcessText = async (text: string) => {
     if (!aiRef.current) {
-        setFeedback({ type: 'error', message: "API Key manquante." });
+        setFeedback({ type: 'error', message: "Clé API manquante." });
         return;
     }
 
     setIsProcessing(true);
-    setFeedback({ type: null, message: "Analyse..." });
+    setFeedback({ type: null, message: "Analyse intelligente..." });
 
     try {
+        const now = new Date();
+        
+        // Prompt optimisé pour le découpage d'intentions multiples
         const prompt = `
-            Tu es un assistant IA pour une app BTP. Analyse : "${text}".
-            Réponds JSON uniquement.
+            Tu es l'intelligence artificielle de l'application de gestion BTP 'Tracklyo'.
+            Date et heure actuelles : ${now.toLocaleString('fr-FR')}.
             
-            1. Travail/Chantier -> category: "RECAP"
-               - title: court.
-               - description: reformulé pro.
-               - type: "DAILY"
+            TA MISSION :
+            Analyser la commande vocale ci-dessous et extraire TOUTES les actions distinctes demandées.
+            L'utilisateur peut combiner plusieurs demandes (ex: "J'ai acheté du ciment ET on a une réunion demain") dans la même phrase.
             
-            2. RDV/Agenda -> category: "EVENT"
-               - title: Titre.
-               - date: ISO 8601 (YYYY-MM-DDTHH:mm:ss). Année 2025.
-               - description: Détails.
+            COMMANDE VOCALE : "${text}"
             
-            3. Argent/Achat -> category: "EXPENSE"
-               - amount: Nombre.
-               - reason: Motif.
-               - currency: 'EUR', 'USD' ou 'XOF'.
+            Retourne STRICTEMENT un objet JSON avec la structure suivante (pas de markdown) :
+            {
+              "items": [
+                // Liste des objets détectés
+              ]
+            }
+
+            CATÉGORIES D'ACTIONS POSSIBLES :
             
-            JSON :
+            1. "EXPENSE" (Dépense, achat, paiement, facture, coût)
+               - amount: nombre (ex: 200).
+               - currency: 'EUR', 'USD' ou 'XOF' (déduire selon contexte ou défaut EUR).
+               - reason: motif court (ex: "Matériel peinture").
+            
+            2. "EVENT" (Réunion, rendez-vous, visite, planning, agenda)
+               - title: titre court.
+               - date: Format ISO 8601 complet (YYYY-MM-DDTHH:mm:ss). 
+                 IMPORTANT: Calcule la date relative si nécessaire (ex: "dans 3 jours" -> ajoute 3 jours à la date actuelle).
+               - description: détails.
+
+            3. "RECAP" (Rapport, journal, "j'ai fini", "on a fait", activité, chantier)
+               - title: titre résumant l'action.
+               - description: texte reformulé de manière professionnelle.
+               - type: "DAILY" (par défaut) ou "WEEKLY".
+
+            Exemple de sortie JSON valide :
+            {
+              "items": [
+                { "category": "EXPENSE", "amount": 45.50, "currency": "EUR", "reason": "Essence" },
+                { "category": "EVENT", "title": "Point Chantier", "date": "2024-10-12T14:00:00" }
+              ]
+            }
         `;
 
         const response = await aiRef.current.models.generateContent({
@@ -134,127 +158,161 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
             config: { responseMimeType: 'application/json' }
         });
 
-        const result = JSON.parse(response.text);
+        // Nettoyage robuste du JSON (suppression des balises markdown éventuelles)
+        const cleanJson = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const result = JSON.parse(cleanJson);
+        const items = result.items || [];
+        
+        if (items.length === 0) {
+             setFeedback({ type: 'error', message: "Je n'ai pas compris l'action." });
+             setIsProcessing(false);
+             return;
+        }
 
-        // Simulate a small delay for the UX "Wow" effect
-        await new Promise(r => setTimeout(r, 800));
+        const processedItems: any[] = [];
 
-        if (result.category === 'RECAP') {
-            const newRecap: Recap = {
-                id: Date.now().toString(),
-                title: result.title || "Rapport Vocal",
-                type: 'DAILY',
-                description: result.description || text,
-                date: new Date().toISOString(),
-                authorId: currentUser.id,
-                mediaUrls: [],
-                comments: []
-            };
-            onAddRecap(newRecap);
-            setDetectedType('RECAP');
-            setDetectedItem(newRecap);
-            setFeedback({ type: 'success', message: "Rapport généré" });
-            setTimeout(() => onNavigate('recaps'), 3500);
+        // Exécution automatique des actions détectées
+        for (const item of items) {
+            if (item.category === 'RECAP') {
+                const newRecap: Recap = {
+                    id: Date.now().toString() + Math.random(),
+                    title: item.title || "Rapport Vocal",
+                    type: 'DAILY',
+                    description: item.description || text,
+                    date: new Date().toISOString(),
+                    authorId: currentUser.id,
+                    mediaUrls: [],
+                    comments: []
+                };
+                onAddRecap(newRecap);
+                processedItems.push({ ...item, internalId: newRecap.id });
 
-        } else if (result.category === 'EVENT') {
-            const newEvent: CalendarEvent = {
-                id: Date.now().toString(),
-                title: result.title || "RDV Vocal",
-                description: result.description || text,
-                date: result.date || new Date().toISOString(),
-                authorId: currentUser.id
-            };
-            onAddEvent(newEvent);
-            setDetectedType('EVENT');
-            setDetectedItem(newEvent);
-            setFeedback({ type: 'success', message: "Ajouté à l'agenda" });
-            setTimeout(() => onNavigate('calendar'), 3500);
+            } else if (item.category === 'EVENT') {
+                const newEvent: CalendarEvent = {
+                    id: Date.now().toString() + Math.random(),
+                    title: item.title || "RDV Vocal",
+                    description: item.description || text,
+                    date: item.date || new Date().toISOString(),
+                    authorId: currentUser.id
+                };
+                onAddEvent(newEvent);
+                processedItems.push({ ...item, internalId: newEvent.id });
 
-        } else if (result.category === 'EXPENSE') {
-            const newTransaction: Transaction = {
-                id: Date.now().toString(),
-                amount: Number(result.amount) || 0,
-                reason: result.reason || "Dépense vocale",
-                date: new Date().toISOString(),
-                type: TransactionType.EXPENSE,
-                currency: result.currency || 'EUR',
-                authorId: currentUser.id
-            };
-            onAddTransaction(newTransaction);
-            setDetectedType('EXPENSE');
-            setDetectedItem(newTransaction);
-            setFeedback({ type: 'success', message: "Dépense notée" });
-            setTimeout(() => onNavigate('finances'), 3500);
-        } else {
-             setFeedback({ type: 'error', message: "Pas compris." });
+            } else if (item.category === 'EXPENSE') {
+                const newTransaction: Transaction = {
+                    id: Date.now().toString() + Math.random(),
+                    amount: Number(item.amount) || 0,
+                    reason: item.reason || "Dépense vocale",
+                    date: new Date().toISOString(),
+                    type: TransactionType.EXPENSE,
+                    currency: item.currency || 'EUR',
+                    authorId: currentUser.id
+                };
+                onAddTransaction(newTransaction);
+                processedItems.push({ ...item, internalId: newTransaction.id });
+            }
+        }
+
+        // Petit délai pour l'effet "Traitement"
+        await new Promise(r => setTimeout(r, 600));
+
+        setDetectedItems(processedItems);
+        setFeedback({ type: 'success', message: "Actions effectuées !" });
+
+        // Redirection automatique si une seule action, sinon affichage du résumé
+        if (processedItems.length === 1) {
+             const type = processedItems[0].category;
+             setTimeout(() => {
+                 if (type === 'RECAP') onNavigate('recaps');
+                 if (type === 'EVENT') onNavigate('calendar');
+                 if (type === 'EXPENSE') onNavigate('finances');
+             }, 2500); // Délai réduit pour fluidité
         }
 
     } catch (error) {
-        console.error(error);
-        setFeedback({ type: 'error', message: "Erreur analyse." });
+        console.error("Erreur IA:", error);
+        setFeedback({ type: 'error', message: "Désolé, une erreur est survenue." });
     } finally {
         setIsProcessing(false);
     }
   };
 
-  // Render the result card based on type
-  const renderResultCard = () => {
-      if (!detectedItem || !detectedType) return null;
+  // Affichage des résultats avec confirmation visuelle
+  const renderResults = () => {
+      if (detectedItems.length === 0) return null;
 
       return (
-          <div className="animate-scale-in mx-auto w-full max-w-sm bg-white/90 backdrop-blur-xl rounded-[2rem] p-6 shadow-2xl border border-white/50 relative overflow-hidden mt-8">
-              {/* Card Header Background */}
-              <div className={`absolute top-0 left-0 right-0 h-24 ${
-                  detectedType === 'RECAP' ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500' :
-                  detectedType === 'EVENT' ? 'bg-gradient-to-br from-indigo-500 to-blue-500' :
-                  'bg-gradient-to-br from-emerald-500 to-teal-500'
-              } opacity-10`}></div>
-              
-              {/* Icon */}
-              <div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg ${
-                   detectedType === 'RECAP' ? 'bg-violet-100 text-violet-600' :
-                   detectedType === 'EVENT' ? 'bg-indigo-100 text-indigo-600' :
-                   'bg-emerald-100 text-emerald-600'
-              }`}>
-                  {detectedType === 'RECAP' && <FileText size={32} />}
-                  {detectedType === 'EVENT' && <CalendarIcon size={32} />}
-                  {detectedType === 'EXPENSE' && <Wallet size={32} />}
-                  
-                  <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-1 shadow-sm">
-                      <Check size={14} className="text-green-500 stroke-[4]" />
+          <div className="w-full max-w-md mt-8 space-y-4 animate-scale-in px-2">
+              <div className="text-center mb-6">
+                  <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-5 py-2 rounded-full text-sm font-bold shadow-sm animate-pulse-slow">
+                      <CheckCircle2 size={18} strokeWidth={2.5} />
+                      {detectedItems.length} élément{detectedItems.length > 1 ? 's' : ''} enregistré{detectedItems.length > 1 ? 's' : ''} avec succès
                   </div>
               </div>
 
-              {/* Content */}
-              <div className="relative z-10">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                      {detectedType === 'RECAP' ? 'Rapport créé' : detectedType === 'EVENT' ? 'Événement planifié' : 'Dépense ajoutée'}
-                  </p>
-                  
-                  {detectedType === 'EXPENSE' ? (
-                      <h3 className="text-3xl font-black text-slate-900 mb-1">
-                          -{detectedItem.amount} {detectedItem.currency === 'USD' ? '$' : '€'}
-                      </h3>
-                  ) : (
-                      <h3 className="text-xl font-bold text-slate-900 mb-1 leading-tight">
-                          {detectedItem.title}
-                      </h3>
-                  )}
+              {detectedItems.map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    className="bg-white/95 backdrop-blur-xl rounded-2xl p-4 shadow-lg border border-slate-100 flex items-center gap-4 animate-slide-up hover:scale-[1.02] transition-transform duration-300"
+                    style={{ animationDelay: `${idx * 150}ms` }}
+                  >
+                      {/* Icon Box */}
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${
+                           item.category === 'RECAP' ? 'bg-violet-100 text-violet-600' :
+                           item.category === 'EVENT' ? 'bg-indigo-100 text-indigo-600' :
+                           'bg-rose-100 text-rose-600'
+                      }`}>
+                          {item.category === 'RECAP' && <FileText size={24} />}
+                          {item.category === 'EVENT' && <CalendarIcon size={24} />}
+                          {item.category === 'EXPENSE' && <Wallet size={24} />}
+                      </div>
 
-                  {detectedType === 'EVENT' && (
-                       <p className="text-indigo-600 font-bold bg-indigo-50 inline-block px-3 py-1 rounded-lg text-sm mt-2">
-                           {format(new Date(detectedItem.date), "d MMM 'à' HH:mm", { locale: fr })}
-                       </p>
-                  )}
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                          {/* Label de destination explicite */}
+                          <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1 ${
+                               item.category === 'RECAP' ? 'text-violet-600' :
+                               item.category === 'EVENT' ? 'text-indigo-600' :
+                               'text-rose-600'
+                          }`}>
+                              <Check size={10} strokeWidth={4} />
+                              {item.category === 'RECAP' ? 'Ajouté aux Rapports' : item.category === 'EVENT' ? 'Ajouté à l\'Agenda' : 'Débité du Budget'}
+                          </p>
+                          
+                          <h4 className="font-bold text-slate-900 truncate text-base">
+                              {item.category === 'EXPENSE' ? `-${item.amount} ${item.currency === 'USD' ? '$' : '€'}` : item.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 truncate">
+                              {item.category === 'EXPENSE' ? item.reason : (item.date ? format(new Date(item.date), "d MMM 'à' HH:mm", {locale:fr}) : item.description)}
+                          </p>
+                      </div>
 
-                  <p className="text-slate-500 text-sm mt-3 line-clamp-2 leading-relaxed">
-                      {detectedType === 'EXPENSE' ? detectedItem.reason : detectedItem.description}
-                  </p>
-              </div>
-
-              {/* Progress Bar redirection */}
-              <div className="mt-6 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-slate-900 animate-[width_3s_ease-in-out_forwards] w-0"></div>
+                      {/* Link Action */}
+                      <button 
+                        onClick={() => {
+                             if (item.category === 'RECAP') onNavigate('recaps');
+                             if (item.category === 'EVENT') onNavigate('calendar');
+                             if (item.category === 'EXPENSE') onNavigate('finances');
+                        }}
+                        className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-400 hover:text-indigo-600 transition-colors border border-slate-100"
+                        title="Voir dans l'onglet"
+                      >
+                          <ArrowRight size={18} />
+                      </button>
+                  </div>
+              ))}
+              
+              <div className="pt-6 text-center">
+                   <button 
+                     onClick={() => {
+                        setDetectedItems([]);
+                        setTranscript('');
+                        setFeedback({ type: null, message: '' });
+                     }}
+                     className="px-6 py-3 rounded-full bg-white/50 hover:bg-white border border-slate-200 text-sm font-bold text-slate-600 hover:text-indigo-600 transition-all shadow-sm active:scale-95"
+                   >
+                       Nouvelle demande
+                   </button>
               </div>
           </div>
       );
@@ -272,9 +330,9 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-lg flex flex-col items-center">
           
-          {/* Header */}
-          {!detectedItem && (
-            <div className={`text-center space-y-3 mb-12 transition-all duration-500 ${isListening ? 'opacity-50 scale-95' : 'opacity-100'}`}>
+          {/* Header (Hide when showing results to save space) */}
+          {detectedItems.length === 0 && (
+            <div className={`text-center space-y-3 mb-10 transition-all duration-500 ${isListening ? 'opacity-50 scale-95' : 'opacity-100'}`}>
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm mb-4">
                     <Sparkles size={14} className="text-amber-500 fill-amber-500" />
                     <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Tracklyo AI</span>
@@ -287,7 +345,7 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
           )}
 
           {/* Interaction Area */}
-          {!detectedItem ? (
+          {detectedItems.length === 0 ? (
               <>
                 {/* Visualizer (Fake bars) */}
                 <div className={`flex items-end justify-center gap-1.5 h-16 mb-8 transition-opacity duration-300 ${isListening ? 'opacity-100' : 'opacity-0'}`}>
@@ -328,37 +386,40 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
                 </div>
 
                 {/* Hints / Status */}
-                <div className="mt-12 text-center h-24">
+                <div className="mt-12 text-center min-h-[100px] w-full">
                      {isListening ? (
                          <p className="text-xl font-medium text-slate-800 animate-pulse">Je vous écoute...</p>
                      ) : isProcessing ? (
-                         <p className="text-xl font-medium text-slate-800">Un instant...</p>
+                         <p className="text-xl font-medium text-slate-800">Je trie vos informations...</p>
                      ) : (
-                         <div className="flex flex-wrap justify-center gap-3 opacity-60">
-                             <span className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-500 shadow-sm">"J'ai fini le chantier..."</span>
-                             <span className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-500 shadow-sm">"Ajoute 50€ d'essence"</span>
+                         <div className="flex flex-col items-center gap-3 opacity-70">
+                             <div className="flex gap-2">
+                                <span className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[10px] md:text-xs font-bold text-slate-500 shadow-sm">"Dépense 200€ matériel..."</span>
+                                <span className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[10px] md:text-xs font-bold text-slate-500 shadow-sm">"Réunion Lundi 14h..."</span>
+                             </div>
+                             <p className="text-xs text-slate-400 mt-2">Dites tout d'un coup, je m'occupe de ranger.</p>
                          </div>
                      )}
                      
                      {/* Live Transcript Overlay */}
                      {transcript && (
-                         <div className="mt-6 px-6">
-                            <p className="text-lg text-slate-600 font-medium leading-relaxed">
+                         <div className="mt-6 px-4 py-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/40 shadow-sm mx-auto max-w-sm">
+                            <p className="text-base text-slate-700 font-medium leading-relaxed">
                                 "{transcript}"
                             </p>
                          </div>
                      )}
                      
                      {feedback.type === 'error' && (
-                         <div className="mt-4 inline-flex items-center gap-2 text-rose-600 bg-rose-50 px-4 py-2 rounded-xl text-sm font-bold">
+                         <div className="mt-4 inline-flex items-center gap-2 text-rose-600 bg-rose-50 px-4 py-2 rounded-xl text-sm font-bold animate-shake">
                              <AlertCircle size={16} /> {feedback.message}
                          </div>
                      )}
                 </div>
               </>
           ) : (
-              // --- SUCCESS STATE ---
-              renderResultCard()
+              // --- RESULTS LIST ---
+              renderResults()
           )}
 
       </div>
