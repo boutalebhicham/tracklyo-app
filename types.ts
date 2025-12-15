@@ -8,6 +8,7 @@ export interface User {
   name: string;
   role: UserRole;
   avatar: string;
+  phoneNumber?: string; // Ajout du numéro de téléphone
 }
 
 export interface Comment {
@@ -59,7 +60,7 @@ export interface Transaction {
   date: string;
   type: TransactionType;
   currency: CurrencyCode;
-  authorId: string;
+  authorId: string; // ID de celui qui a fait l'action (ou ID du manager concerné pour le budget)
 }
 
 export interface AppData {

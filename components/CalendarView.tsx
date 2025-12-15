@@ -47,16 +47,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({ data, currentUser, onAddEve
     <div className="animate-fade-in relative min-h-screen pb-20">
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+      <div className="flex flex-row justify-between items-center gap-4 mb-6">
         <div>
            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Agenda</h1>
-           <p className="text-xs md:text-base text-slate-500 font-medium">Vos échéances et rendez-vous.</p>
+           <p className="text-xs md:text-base text-slate-500 font-medium">Vos échéances.</p>
         </div>
         <button
           onClick={() => setIsAdding(true)}
-          className="hidden md:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95"
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 md:px-6 md:py-3 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95"
         >
-          <Plus size={20} /> <span>Nouvel événement</span>
+          <Plus size={20} /> <span className="hidden md:inline">Nouvel événement</span><span className="md:hidden">Créer</span>
         </button>
       </div>
 
@@ -192,13 +192,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ data, currentUser, onAddEve
 
       </div>
 
-      {/* Mobile Floating Action Button (FAB) */}
-      <button
-        onClick={() => setIsAdding(true)}
-        className="md:hidden fixed bottom-24 right-4 z-50 w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-indigo-600/40 active:scale-90 transition-transform"
-      >
-        <Plus size={28} />
-      </button>
+      {/* FAB Removed here to prevent overlap with WhatsApp button */}
 
       {/* Add Event Modal (Mobile + Desktop) */}
       {isAdding && (

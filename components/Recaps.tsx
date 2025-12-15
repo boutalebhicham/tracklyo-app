@@ -79,27 +79,19 @@ const Recaps: React.FC<RecapsProps> = ({ data, currentUser, onAddRecap, onAddCom
                 <p className="text-xs text-slate-500 font-bold">Fil d'actualité et échanges</p>
             </div>
             
-            {/* Desktop Button */}
+            {/* Desktop Button - Made visible on mobile */}
             {currentUser.role === UserRole.RESPONSABLE && (
             <button
                 onClick={() => setIsAdding(true)}
-                className="hidden md:flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-2xl font-bold transition-all shadow-lg shadow-violet-500/30 active:scale-95"
+                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 md:px-5 md:py-2.5 rounded-2xl font-bold transition-all shadow-lg shadow-violet-500/30 active:scale-95"
             >
-                <Plus size={18} /> <span>Publier</span>
+                <Plus size={18} /> <span className="hidden md:inline">Publier</span><span className="md:hidden">Ajouter</span>
             </button>
             )}
           </div>
       </div>
 
-      {/* Mobile Floating Action Button (FAB) */}
-      {currentUser.role === UserRole.RESPONSABLE && !isAdding && (
-         <button
-            onClick={() => setIsAdding(true)}
-            className="md:hidden fixed bottom-24 right-4 z-50 w-14 h-14 bg-violet-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-violet-600/40 active:scale-90 transition-transform"
-         >
-            <Plus size={28} />
-         </button>
-      )}
+      {/* FAB Removed here to avoid overlap with WhatsApp button */}
 
       {/* Add Form Modal/Overlay */}
       {isAdding && (
